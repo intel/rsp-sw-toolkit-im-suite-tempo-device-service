@@ -1,0 +1,18 @@
+name: "Tempo-Disc"
+manufacturer: "Blue Maestro"
+model: "Tempo Disc"
+labels:
+  - "BLE"
+description: "Blue Maestro Tempo Disc BLE temperature sensor"
+
+deviceResources:
+  - name: Temperature
+    description: "Current temperature"
+    properties:
+      value:
+        { type: "FLOAT32", readWrite: "R" }
+
+deviceCommands:
+  - name: "Temperature"
+    get:
+      - { operation: "get", object: "Temperature" }

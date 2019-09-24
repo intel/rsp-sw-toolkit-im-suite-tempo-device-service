@@ -1,5 +1,5 @@
 FROM scratch
-ADD server /
-EXPOSE 80
-ENTRYPOINT ["/server"]
-CMD ["-p", "80"]
+ADD cmd /
+EXPOSE 49993
+ENTRYPOINT ["/tempo-device-service"]
+CMD ["--registry=consul://edgex-core-consul:8500","--profile=docker","--confdir=/res"]

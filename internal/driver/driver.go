@@ -24,11 +24,10 @@ import (
 	"context"
 	"encoding/hex"
 	"fmt"
-	sdk "github.com/edgexfoundry/device-sdk-go"
-	sdkModel "github.com/edgexfoundry/device-sdk-go/pkg/models"
+	"github.com/edgexfoundry/device-sdk-go"
+	deviceModels "github.com/edgexfoundry/device-sdk-go/pkg/models"
 	"github.com/edgexfoundry/go-mod-core-contracts/clients/logger"
-	"github.com/edgexfoundry/go-mod-core-contracts/models"
-	edgexModels "github.com/edgexfoundry/go-mod-core-contracts/models"
+	coreModels "github.com/edgexfoundry/go-mod-core-contracts/models"
 	"io"
 	"log"
 	"net/http"
@@ -37,28 +36,41 @@ import (
 
 type Driver struct {
 	Logger  logger.LoggingClient
-	AsyncCh chan<- *sdkModel.AsyncValues
+	AsyncCh chan<- *deviceModels.AsyncValues
 	done    chan interface{}
 	server  *http.Server
 }
 
+type Configuration struct {
+	ListenAddr string
+}
+
 // NewProtocolDriver returns the package-level driver instance.
-func NewProtocolDriver() sdkModel.ProtocolDriver {
+func NewProtocolDriver() deviceModels.ProtocolDriver {
 	return new(Driver)
 }
 
+const (
+	ConfigListenAddr = "ListenAddress"
+)
+
 // Initialize the driver.
-func (driver *Driver) Initialize(lc logger.LoggingClient, asyncCh chan<- *sdkModel.AsyncValues) error {
+func (driver *Driver) Initialize(lc logger.LoggingClient, asyncCh chan<- *deviceModels.AsyncValues) error {
 	driver.Logger = lc
 	driver.AsyncCh = asyncCh
 	driver.done = make(chan interface{})
 
+	var listenAddr string
+	if err := GetDriverConfig().Get(ConfigListenAddr, &listenAddr); err != nil {
+		return err
+	}
+
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", func(writer http.ResponseWriter, r *http.Request) {
-		driver.Logger.Info("health check from %q", r.UserAgent())
+		driver.Logger.Info(fmt.Sprintf("health check from %q", r.UserAgent()))
 	})
 	mux.Handle("/hcidump", hciHandler{driver: driver})
-	driver.server = &http.Server{Addr: ":49983", Handler: mux} // TODO: make port driver config
+	driver.server = &http.Server{Addr: ":" + listenAddr, Handler: mux}
 
 	go driver.runUntilCancelled()
 	return nil
@@ -66,7 +78,7 @@ func (driver *Driver) Initialize(lc logger.LoggingClient, asyncCh chan<- *sdkMod
 
 // runUntilCancelled will block forever until done is signaled to shutdown.
 func (driver *Driver) runUntilCancelled() {
-	driver.Logger.Info("Starting server.")
+	driver.Logger.Info(fmt.Sprintf("Starting server on port %s.", driver.server.Addr))
 	go func() {
 		driver.Logger.Info("Server stopped: %v", driver.server.ListenAndServe())
 	}()
@@ -91,12 +103,12 @@ func (driver *Driver) Stop(force bool) error {
 }
 
 // HandleReadCommands ignore all requests.
-func (driver *Driver) HandleReadCommands(deviceName string, protocols map[string]models.ProtocolProperties, reqs []sdkModel.CommandRequest) ([]*sdkModel.CommandValue, error) {
+func (driver *Driver) HandleReadCommands(deviceName string, protocols map[string]coreModels.ProtocolProperties, reqs []deviceModels.CommandRequest) ([]*deviceModels.CommandValue, error) {
 	return nil, nil
 }
 
 // HandleWriteCommands ignores all requests.
-func (driver *Driver) HandleWriteCommands(deviceName string, protocols map[string]models.ProtocolProperties, reqs []sdkModel.CommandRequest, params []*sdkModel.CommandValue) error {
+func (driver *Driver) HandleWriteCommands(deviceName string, protocols map[string]coreModels.ProtocolProperties, reqs []deviceModels.CommandRequest, params []*deviceModels.CommandValue) error {
 	return nil
 }
 
@@ -126,7 +138,7 @@ func (hh hciHandler) ServeHTTP(writer http.ResponseWriter, request *http.Request
 		return
 	}
 
-	if _, notFound := sdk.RunningService().GetDeviceByName(tcd.MAC); notFound != nil {
+	if _, notFound := device.RunningService().GetDeviceByName(tcd.MAC); notFound != nil {
 		if err := hh.driver.registerTempoDisc(tcd); err != nil {
 			hh.driver.Logger.Error(fmt.Sprintf("Failed to register %q: %+v", tcd.MAC, err))
 			return
@@ -141,14 +153,14 @@ func (hh hciHandler) ServeHTTP(writer http.ResponseWriter, request *http.Request
 
 func (driver *Driver) sendTemperature(tcd TempoDiskCurrent) error {
 	origin := time.Now().UnixNano() / int64(time.Millisecond)
-	value, err := sdkModel.NewFloat32Value("Temperature", origin, tcd.Temperature)
+	value, err := deviceModels.NewFloat32Value("Temperature", origin, tcd.Temperature)
 	if err != nil {
 		return err
 	}
 
-	driver.AsyncCh <- &sdkModel.AsyncValues{
+	driver.AsyncCh <- &deviceModels.AsyncValues{
 		DeviceName:    tcd.MAC,
-		CommandValues: []*sdkModel.CommandValue{value},
+		CommandValues: []*deviceModels.CommandValue{value},
 	}
 	driver.Logger.Info(fmt.Sprintf("Sent new reading: %+v", tcd))
 
@@ -156,12 +168,12 @@ func (driver *Driver) sendTemperature(tcd TempoDiskCurrent) error {
 }
 
 func (driver *Driver) registerTempoDisc(tcd TempoDiskCurrent) (err error) {
-	_, err = sdk.RunningService().AddDevice(edgexModels.Device{
+	_, err = device.RunningService().AddDevice(coreModels.Device{
 		Name:           tcd.MAC,
-		AdminState:     edgexModels.Unlocked,
-		OperatingState: edgexModels.Enabled,
-		Profile:        edgexModels.DeviceProfile{Name: "Tempo-Disc"},
-		Protocols: map[string]edgexModels.ProtocolProperties{
+		AdminState:     coreModels.Unlocked,
+		OperatingState: coreModels.Enabled,
+		Profile:        coreModels.DeviceProfile{Name: "Tempo-Disc"},
+		Protocols: map[string]coreModels.ProtocolProperties{
 			"": {},
 		},
 	})

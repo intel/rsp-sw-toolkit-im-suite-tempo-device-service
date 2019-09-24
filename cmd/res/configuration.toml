@@ -54,3 +54,7 @@ LogLevel = "DEBUG"
   RemoveCmdArgs = ""
   ProfilesDir = "./res"
 
+[Driver]
+  # POST output of hcidump to <host>:<ListenAddress>/hcidump;
+  # see sendhci.sh for an example.
+  ListenAddress = "9001"

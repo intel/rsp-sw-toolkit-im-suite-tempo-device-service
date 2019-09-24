@@ -14,4 +14,4 @@ image: Dockerfile go.mod go.sum
 	docker build -t $(SERVICE_NAME) .
 
 run:
-	docker run --rm -it -p 49983:49983 -p 49993:49993 $(SERVICE_NAME)
+	docker run --rm -it -p 9001:9001 -p 49993:49993 $(SERVICE_NAME) --profile=dev

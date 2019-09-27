@@ -2,6 +2,9 @@ GO = GOOS=linux GOARCH=amd64 GO111MODULE=on go
 SERVICE_NAME = tempo-device-service
 GOFLAGS = -ldflags "-X github.impcloud.net/RSP-Inventory-Suite/tempo-device-service/cmd/main.Version=1.0.0"
 
+RUN_PROFILE=docker
+RUN_FLAGS=--rm -it -p 9001:9001 -p 49993:49993
+
 .PHONY: run default cmd/tempo-device-service
 
 default: build image run
@@ -14,4 +17,4 @@ image: Dockerfile go.mod go.sum
 	docker build -t $(SERVICE_NAME) .
 
 run:
-	docker run --rm -it -p 9001:9001 -p 49993:49993 $(SERVICE_NAME) --profile=dev
+	docker run $(RUN_FLAGS) $(SERVICE_NAME) --profile="$(RUN_PROFILE)"

@@ -1,61 +1,125 @@
 # Tempo Disk Device Service
 
-This service hosts an HTTP endpoint to which Blue Maestro 
-Tempo Disk advertisement data can be sent. It's decoded and
-forwarded to EdgeX, registering new sensors as needed.
+This service hosts an HTTP endpoint which takes in `hcidump` data, finds Blue 
+Maestro Tempo Disc advertisements, decodes them, and sends temperature readings
+to EdgeX, registering new sensors as needed.
 
-## How To Use
-Build the service `make build`; you'll need a Go compiler.
+The current service is specific to Blue Maestro Tempo Disc sensors, but puts
+forth some framework which could be extended to a generic BLE device service.
 
-You can run the service locally or in a Docker container;
-`make image` will build a Docker image and `make run` will
-run that image, connected to the local network, listening
-on port 9001. Using just `make` will build the service and
-image, then run it on 9001.
+## Building
+Build the service `make build`; it's written for Go 1.12 with module support.
+The output is `cmd/tempo-device-service`. It can run locally, though you may 
+need to modify the `GO` variable to match your OS/architecture if that's your
+intent.
 
-By default, the service serves on port 80, but it accepts 
-`-p <port>` to run on a different port. 
+## Running in Docker
+Assuming you're running Docker on `localhost`:
+- Run EdgeX dependencies (`edgex-consul`, `core-data`, `core-metadata`, 
+  `support-logging`). 
+- Edit the [service's configuration](cmd/res/docker/configuration.toml) so that
+  the `Host`s and `Port`s for `Registry` and EdgeX `Clients` will be reachable.
+- Use `make` to build and run the service in a Docker container.
+- Verify connectivity by `GET`ting `localhost:9001/` - should respond `200 OK`.
+- POST hex data to `localhost:9001/hcidump`
 
-The service lists for messages at `/hcidump`. Forward HCI 
-dump data to this endpoint and the service will process it. 
+## Options
+The `configuration.toml` includes a `Driver` configuration section with the
+single value `ListenAddress`. This address specifies the HTTP address that the 
+service will listen for incoming `hcidump` data. In the above example, it's
+set to `9001`.
 
-Use the `sendhci.sh` script to send data from a local Bluetooth
-device. By default, it's configured to use `hci0` and forward
-the data to `localhost:9001`. 
+## Usage
+The service hosts two HTTP endpoints:
+- `/` is simply a healthcheck endpoint. If the service is up and reachable, this
+ should respond with `200 OK` and write a log message.
+- `/hcidump` accepts hex encoded strings which it attempts to decode as Tempo
+  Disc data; non-matching data is simply ignored.
+  
+The `/hcidump` endpoint expects data in the same output format as `hcidump -R`, 
+but it doesn't know what the source of the actual data is, so you can easily 
+test the service with `curl` or Postman or similar. The data should be a single 
+line from `hcidump -R`, sans the `>` character. For example:
 
-### Example Output
-Here's some sample output. The logs are the device's MAC, its 
-reported temperature, and the raw advertisement data:
-```bash
-> docker run --rm -it --net host tempo-device-service -p 9001
-2019/09/19 19:24:22 Serving on HTTP port: 9001
-2019/09/19 19:24:22 {MAC:CE:A1:33:4C:94:7F Temperature:24.5} 043E2B020100017F944C33A1CE1F02010611FF33010D64003C330600F500000000010009094345413133333443C5
-2019/09/19 19:24:28 {MAC:C1:EE:03:79:EA:8C Temperature:24.9} 043E2B020100018CEA7903EEC11F02010611FF33010D64003C330400F900000000010009094331454530333739B8
-2019/09/19 19:24:32 {MAC:C1:EE:03:79:EA:8C Temperature:24.9} 043E2B020100018CEA7903EEC11F02010611FF33010D64003C330400F900000000010009094331454530333739BD
-2019/09/19 19:24:38 {MAC:CE:A1:33:4C:94:7F Temperature:24.5} 043E2B020100017F944C33A1CE1F02010611FF33010D64003C330700F500000000010009094345413133333443C5
-2019/09/19 19:24:40 {MAC:CE:A1:33:4C:94:7F Temperature:24.5} 043E2B020100017F944C33A1CE1F02010611FF33010D64003C330700F500000000010009094345413133333443BF
-2019/09/19 19:24:46 {MAC:C1:EE:03:79:EA:8C Temperature:24.9} 043E2B020100018CEA7903EEC11F02010611FF33010D64003C330400F900000000010009094331454530333739BA
-2019/09/19 19:24:46 {MAC:CE:A1:33:4C:94:7F Temperature:24.5} 043E2B020100017F944C33A1CE1F02010611FF33010D64003C330700F500000000010009094345413133333443C5
-2019/09/19 19:24:48 {MAC:C1:EE:03:79:EA:8C Temperature:24.9} 043E2B020100018CEA7903EEC11F02010611FF33010D64003C330400F900000000010009094331454530333739B7
-2019/09/19 19:24:50 {MAC:C1:EE:03:79:EA:8C Temperature:24.9} 043E2B020100018CEA7903EEC11F02010611FF33010D64003C330400F900000000010009094331454530333739C5
-```
+    curl -s -S -X POST \
+      -H 'Content-Type: application/text' \
+      -d  '04 3E 2B 02 01 00 01 8C EA 79 03 EE C1 1F 02 01 06 11 FF 33 '` 
+         `'01 0D 64 00 3C 32 3D 00 E0 00 00 00 00 01 00 09 09 43 31 45 '`
+         `'45 30 33 37 39 C5' \
+     192.168.99.101:9001/hcidump
 
-## TODO
-Currently the service receives and processes HCI Dump messages,
-but doesn't actually do anything but log them. The actual EdgeX
-steps come next, and will involve sending the data and registering
-new sensors.
+The endpoint ignore `'\n'`, `'\r'`, `'\t'`, and `' '`, and accepts both upper 
+and lower case hex characters. This allows it to accept `hcidump` data directly,
+but it'll also accept data without formatting:
 
-It may be worth decoding some of the other advertisement data. 
-They broadcast their battery level, log info, and some aggregate
-stats. If the disk supports it, it also sends out humidity and
-dew point (if it's not supported, its still sent, but always as 0).
+    curl -s -S -X POST \
+      -H 'Content-Type: application/text' \
+      -d '043e2b020100018cea7903eec11f02010611ff33010d64003c323d00e000000000010009094331454530333739c5' \
+     192.168.99.101:9001/hcidump
 
-There are some commands they support for changing logging/reporting
-intervals and temperature units. At the very least, it may be worth 
-checking the settings and making sure that its reporting in Celsius
-and taking readings at a sufficiently high rate, but the steps to
-get to that point involve connecting to a BLE UART service, sending 
-commands, and reading responses -- much more involved than just 
-sniffing the advertisements.
+When all is working, you'll see logs with `msg`s like:
+
+    Sent new reading: {MAC:C1:EE:03:79:EA:8C Temperature:22.4}
+    
+### Data Format
+The data format matches advertisements from Blue Maestro Tempo Disc sensors.
+In the current code version, messages are considered valid if this is true:
+ - the message is 92 hex characters (ignoring `[\n\r\t ]`)
+ - byte 0 is `0x04`
+ - bytes 17-20 are `0x11FF3301`
+
+In this case, bytes 7-16 are extracted as LE MAC address and bytes 27-28 are
+extracted as INT16 current temperature in tenths of a degree (units depend on 
+the sensor settings, but are assumed as the default Celsius).
+
+#### More Specific Data Format
+In the table below, `Check` shows if the value must `Match` exactly, 
+is `Extract`ed as is, or ignored `-`:
+
+|Bytes|Check|Value|Meaning|
+|:---:|:---:|---:|:---|
+|0|Match|04|BLE preamble|
+|1-4| - |3e 2b 02 01|Access address|
+|5| - |00|BLE 2 bit ADV_IND, 2 bit RFU, 2 bit Tx/Rx|
+|6| - |01|2 bit RFU, 6 bit total payload length|
+|7-12|Extract|7f 94 4c 33 a1 ce| LE MAC address|
+|13| - |1f|Message length|
+|14| - |02|Sub-payload is 2 bytes, including type|
+|15| - |01|Sub-payload Type is "Flags"|
+|16| - |06|5 bit flags: Sim LE,BR/EDR Host, Sim LE,BR/EDR Controller, No BR/EDR, LE gen, LE Lim|
+|17|Match|11|Sub-payload is 17 bytes, including type|
+|18|Match|ff|Sub-payload Type is "Manufacturer Specific Data"|
+|19-20|Match|33 01|Blue Maestro Manufacturer's ID|
+|21| - |0d|Tempo Disc version number|
+|22| - |64|Battery percentage|
+|23-24| - |00 3c|Current log interval in seconds|
+|25-26| - |28 de|Stored log count|
+|27-28|Extract|01 22|Current temperature, 10ths of a degree|
+|29-30| - |00 00|Current humidity (if supported)|
+|31-32| - |00 00|Current dew point (if supported)|
+|33| - |01|Mode|
+|34| - |00|Alarm breach count (if alarms set)|
+|35| - |09|Sub-payload is 9 bytes, including type|
+|36| - |09|Sub-payload Type is "Complete Local Name"|
+|37-44| - |43 45 41 31 33 33 34 43|ASCII name (CEA1334C)|
+|45| - |c2|Checksum (CRC32)|
+
+### Sending BLE data
+The [`sendhci.sh` script](bin/sendhci.sh) starts scanning for BLE advertisements,
+reads the `hcidump` raw data, and `curl`s it to a host. If you have a computer
+with a working bluetooth adapter, you can use the script (probably with `sudo`):
+
+    usage: ./sendhci.sh [OPTIONS]
+    OPTIONS:
+         --host|-h ENDPOINT
+             where to send hcidump data
+             default: localhost:9001/hcidump
+    
+         --device|-d HCI_DEVICE_NUM
+             number of the hci device to use
+             default: 0
+    
+         --verbose|-v
+             print scan data while running
+             default: false
 

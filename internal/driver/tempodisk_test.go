@@ -16,7 +16,7 @@ func TestHCIDumpToTempoData(t *testing.T) {
 	decoder := hex.NewDecoder(NewSpaceSkipReader(bytes.NewReader(input)))
 	data := make([]byte, 100)
 	n := w.ShouldHaveResult(decoder.Read(data)).(int)
-	tcd := new(TempoDiskCurrent)
+	tcd := new(TempoDiscCurrent)
 	w.ShouldSucceed(tcd.UnmarshalBinary(data[:n]))
 	w.ShouldBeEqual(tcd.MAC, "C1:EE:03:79:EA:8C")
 	w.ShouldBeEqual(tcd.Temperature, float32(22.4))
@@ -28,7 +28,7 @@ func TestDecodeTempoData(t *testing.T) {
 		"043E2B020100018CEA7903EEC11F020106" +
 			"11FF33010D64003C32F5" +
 			"010200000000010009094331454530333739B7")).([]byte)
-	tcd := new(TempoDiskCurrent)
+	tcd := new(TempoDiscCurrent)
 	w.ShouldSucceed(tcd.UnmarshalBinary(data))
 	w.ShouldBeEqual(tcd.Temperature, float32(25.8))
 }

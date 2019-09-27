@@ -5,9 +5,9 @@ import (
 	"fmt"
 )
 
-// TempoDiskCurrent is data derived from the announcement of current data from a
+// TempoDiscCurrent is data derived from the announcement of current data from a
 // Blue Maestro Tempo Disk sensor.
-type TempoDiskCurrent struct {
+type TempoDiscCurrent struct {
 	MAC         string
 	Temperature float32
 }
@@ -19,7 +19,7 @@ func leMACToString(macLE []byte) string {
 }
 
 // TempoDecodeError is the error type returned during Unmarshalling if the input
-// data cannot be decoded into TempoDiskCurrent.
+// data cannot be decoded into TempoDiscCurrent.
 type TempoDecodeError error
 
 var (
@@ -30,7 +30,7 @@ var (
 )
 
 // UnmarshalBinary decodes advertisement data from Tempo Disks.
-func (tcd *TempoDiskCurrent) UnmarshalBinary(data []byte) error {
+func (tcd *TempoDiscCurrent) UnmarshalBinary(data []byte) error {
 	if len(data) != 46 {
 		return InvalidLength
 	}

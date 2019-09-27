@@ -133,7 +133,7 @@ func (hh hciHandler) ServeHTTP(writer http.ResponseWriter, request *http.Request
 		writer.WriteHeader(500)
 	}
 
-	tcd := TempoDiskCurrent{}
+	tcd := TempoDiscCurrent{}
 	if err := tcd.UnmarshalBinary(data[:n]); err != nil {
 		return
 	}
@@ -151,7 +151,7 @@ func (hh hciHandler) ServeHTTP(writer http.ResponseWriter, request *http.Request
 	}
 }
 
-func (driver *Driver) sendTemperature(tcd TempoDiskCurrent) error {
+func (driver *Driver) sendTemperature(tcd TempoDiscCurrent) error {
 	origin := time.Now().UnixNano() / int64(time.Millisecond)
 	value, err := deviceModels.NewFloat32Value("Temperature", origin, tcd.Temperature)
 	if err != nil {
@@ -167,7 +167,7 @@ func (driver *Driver) sendTemperature(tcd TempoDiskCurrent) error {
 	return nil
 }
 
-func (driver *Driver) registerTempoDisc(tcd TempoDiskCurrent) (err error) {
+func (driver *Driver) registerTempoDisc(tcd TempoDiscCurrent) (err error) {
 	_, err = device.RunningService().AddDevice(coreModels.Device{
 		Name:           tcd.MAC,
 		AdminState:     coreModels.Unlocked,

@@ -1,35 +1,32 @@
-ARG SERVICE=tempo-device-service
-
 # ----------------------------------------------------------------
 # Builder
 # ----------------------------------------------------------------
-FROM golang:1.12 as builder
-ARG GIT_TOKEN
-ARG SERVICE
-WORKDIR /app
+FROM golang:1.12-alpine as builder
+
+RUN echo http://nl.alpinelinux.org/alpine/v3.6/main > /etc/apk/repositories; \
+    echo http://nl.alpinelinux.org/alpine/v3.6/community >> /etc/apk/repositories
+RUN apk add git
 
 # Authentication needed to pull git modules from github.impcloud.net
+ARG GIT_TOKEN
 RUN git config --global credential.helper store
 RUN echo "url=https://$GIT_TOKEN:x-oauth-basic@github.impcloud.net" | git credential approve
 
 # take advantage of build cache by downloading modules before copying sources
+WORKDIR /app
 COPY go.mod .
 RUN go mod download
 
 # build the service binary
 COPY . .
-RUN go build -o $SERVICE .
+RUN GOARCH=amd64 go build -o service .
 
 # ----------------------------------------------------------------
 # Service Image
 # ----------------------------------------------------------------
 FROM scratch as service
-ARG PORTS="49993 9001"
-ARG SERVICE
-
-COPY res /
-COPY --from=builder /app/$SERVICE /
-EXPOSE $PORTS
-ENV SERVICE=$SERVICE
-ENTRYPOINT ["/$SERVICE"]
+COPY res /res
+COPY --from=builder /app/service /service
+EXPOSE 49993 9001
+ENTRYPOINT ["./service"]
 CMD ["--registry=consul://edgex-core-consul:8500","--profile=docker","--confdir=/res"]

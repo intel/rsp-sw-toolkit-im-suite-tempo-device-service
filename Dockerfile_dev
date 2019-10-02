@@ -1,11 +1,7 @@
 # ----------------------------------------------------------------
 # Builder
 # ----------------------------------------------------------------
-FROM golang:1.12-alpine as builder
-
-RUN echo http://nl.alpinelinux.org/alpine/v3.6/main > /etc/apk/repositories; \
-    echo http://nl.alpinelinux.org/alpine/v3.6/community >> /etc/apk/repositories
-RUN apk add git
+FROM golang:1.12 as builder
 
 # Authentication needed to pull git modules from github.impcloud.net
 ARG GIT_TOKEN
@@ -19,7 +15,7 @@ RUN go mod download
 
 # build the service binary
 COPY . .
-RUN GOARCH=amd64 go build -o service .
+RUN CGO_ENABLED=0 go build -o service .
 
 # ----------------------------------------------------------------
 # Service Image

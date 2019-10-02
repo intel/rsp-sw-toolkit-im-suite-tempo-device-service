@@ -1,0 +1,35 @@
+ARG SERVICE=tempo-device-service
+
+# ----------------------------------------------------------------
+# Builder
+# ----------------------------------------------------------------
+FROM golang:1.12 as builder
+ARG GIT_TOKEN
+ARG SERVICE
+WORKDIR /app
+
+# Authentication needed to pull git modules from github.impcloud.net
+RUN git config --global credential.helper store
+RUN echo "url=https://$GIT_TOKEN:x-oauth-basic@github.impcloud.net" | git credential approve
+
+# take advantage of build cache by downloading modules before copying sources
+COPY go.mod .
+RUN go mod download
+
+# build the service binary
+COPY . .
+RUN go build -o $SERVICE .
+
+# ----------------------------------------------------------------
+# Service Image
+# ----------------------------------------------------------------
+FROM scratch as service
+ARG PORTS="49993 9001"
+ARG SERVICE
+
+COPY res /
+COPY --from=builder /app/$SERVICE /
+EXPOSE $PORTS
+ENV SERVICE=$SERVICE
+ENTRYPOINT ["/$SERVICE"]
+CMD ["--registry=consul://edgex-core-consul:8500","--profile=docker","--confdir=/res"]

@@ -1,0 +1,11 @@
+.idea/
+.git/
+bin/
+snap/
+cmd/tempo-device-service
+
+.gitignore
+.dockerignore
+Dockerfile
+Dockerfile_dev
+README.md

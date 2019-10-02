@@ -28,6 +28,7 @@ const (
 	serviceName string = "tempo-device-service"
 )
 
+// Version is replaced by -ldflags "-X github.impcloud.net/RSP-Inventory-Suite/tempo-device-service/main.Version=1.0.0"
 var Version = "1.0.0"
 
 func main() {

@@ -17,7 +17,7 @@ intent.
 Assuming you're running Docker on `localhost`:
 - Run EdgeX dependencies (`edgex-consul`, `core-data`, `core-metadata`, 
   `support-logging`). 
-- Edit the [service's configuration](cmd/res/docker/configuration.toml) so that
+- Edit the [service's configuration](res/docker/configuration.toml) so that
   the `Host`s and `Port`s for `Registry` and EdgeX `Clients` will be reachable.
 - Use `make` to build and run the service in a Docker container.
 - Verify connectivity by `GET`ting `localhost:9001/` - should respond `200 OK`.

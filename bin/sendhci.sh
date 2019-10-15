@@ -28,10 +28,8 @@ function ensure_arg() {
         fi
 }
 
-hostaddr=localhost:80/hcidump
+hostaddr=localhost:9001/hcidump
 device=0
-
-
 
 # read options
 while [[ "$1" =~ ^- ]]; do case $1 in
@@ -58,54 +56,45 @@ if [[ $# -ne 0 ]]; then
         usage; exit 1
 fi
 
+# make sure the device is an unblocked Bluetooth device
 function check_device() {
-        if [[ "$1" != "$device" ]]; then
-                return
-        fi
+    if [[ "$1" != "$device" ]]; then
+            return
+    fi
 
-        found=true
-        if [[ "$2" != "bluetooth" ]]; then
-                echo "device $1 is $2, not bluetooth"
-                exit 1;
-        fi
+    found=true
+    if [[ "$2" != "bluetooth" ]]; then
+            echo "device $1 is $2, not bluetooth"
+            exit 1;
+    fi
 
-        # check softblocks
-        if [[ "$3" != "unblocked" ]]; then
-                echo "removing softblock from $1..."
-                (set -x && rfkill unblock bluetooth)
-                if [[ $(rfkill list 0 --noheading --output SOFT) != "unblocked" ]]; then
-                        echo "device $1 is '$3', but 'rfkill unblock bluetooth' failed"
-                        exit 1;
-                fi
-        fi
+    # check softblocks
+    if [[ "$3" != "unblocked" ]]; then
+            echo "removing softblock from $1..."
+            (set -x && rfkill unblock bluetooth)
+            if [[ $(rfkill list 0 --noheading --output SOFT) != "unblocked" ]]; then
+                    echo "device $1 is '$3', but 'rfkill unblock bluetooth' failed"
+                    exit 1;
+            fi
+    fi
 
-        # check hardblocks
-        if [[ "$4" != "unblocked" ]]; then
-                echo "device $1 is $4"
-                exit 1;
-        fi
+    # check hardblocks
+    if [[ "$4" != "unblocked" ]]; then
+            echo "device $1 is $4"
+            exit 1;
+    fi
 }
 
-# find_bluetooth goes through the devices looking for this one
-function find_bluetooth() {
-        found=false
-        while read -r line; do
-                check_device $line
-                if [[ $found == "true" ]]; then
-                        break;
-                fi
-        done <<< "$(rfkill list --noheading --output ID,TYPE,SOFT,HARD)"
-        if [[ $found != "true" ]]; then
-                echo "cannot find device $device";
-                exit 1;
-        fi
-}
-
-find_bluetooth
+dstatus=$(rfkill list $device --noheading --output TYPE,SOFT,HARD)
+if [[ $? -ne 0 ]]; then
+    echo "cannot find device $device";
+    exit 1;
+fi
+check_device $dstatus
 
 scan_opts='--duplicates'
 if [[ $whitelist ]]; then
-        scan_opts="$scan_opts --whitelist"
+    scan_opts="$scan_opts --whitelist"
 fi
 
 # start scanning

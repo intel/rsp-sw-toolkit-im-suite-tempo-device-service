@@ -123,3 +123,93 @@ with a working bluetooth adapter, you can use the script (probably with `sudo`):
              print scan data while running
              default: false
 
+Sending data in this way requires a working bluetooth stack and device. On linux, 
+most or all of the software is likely already installed. If so, the script should
+work without issue. If it doesn't, here are some tips you can use to troubleshoot.
+
+Processing messages can go wrong in a few main steps:
+- the sensors aren't on/beaconing
+- BLE messages aren't picked up by the receiver
+- messages aren't making it over the network to the service
+- the services doesn't recognizes the message or can't extract the temperature 
+
+#### Get Bluetooth messages from the device
+If you don't have bluetooth tools installed, you can get them on ubuntu with:
+
+    apt-get install -y bluetooth bluez bluez-hcidump rfkill
+    
+If it's not running, you can start bluetooth with:
+
+    systemctl start bluetooth.service
+    
+You can at list your bluetooth devices like this:
+
+    rfkill list bluetooth --output ID,SOFT,HARD 
+    
+If you don't see your bluetooth device, you'll need to do some Googling to debug.
+
+Assuming the device is listed, it also needs to be free from soft/hard blocks.
+A soft block is essentially a note to the system to disable the device. You can
+remove a soft block with `rfkill unblock bluetooth`. The script automatically
+handles this case. A hard block is a physical switch that prevents the device
+from running. If you see `blocked` in the `HARD` column, you'll need to find and
+change the physical switch setting.
+
+If the device is up and running, you can scan for BLE messages with:
+
+    hcitool lescan --duplicates
+    
+This will list the address of all BLE devices advertising within range. If you
+don't see any, then either scanning isn't working or there aren't any devices
+nearby. You can verify that your tempo disc is beaconing by installing their app 
+to your smartphone. Refer to their documentation for more information.
+
+If that's not working, you can try resetting the device via `bluetoothctl`. 
+Enter `bluetoothctl` in a terminal to enter the CLI (you may need `sudo`), then 
+try scanning by typing `scan on`. It should print addresses of beaconing devices.
+Stop it with `scan off`. If those don't work, try cycling (or just powering) the
+bluetooth device via `power on`/`power off` commands. After these commands, you 
+can retry the `lescan` or the `sendhci.sh -v` script. You should see messages at
+this point; if not, it's time to turn to Google.
+
+#### Make sure messages can make it over the network
+The `curl` command sends messages to the target host specified with `-h <hostaddr>`.
+By default, it's set to `localhost:9001/hcidump` since `9001` is the default 
+port for the `tempo-device-service`. If you're running it on a different host or
+have changed the port number, you'll need to use the `-h` flag to adjust it. 
+
+If it's running in a Docker container, you'll need to make sure the container's 
+port is exposed (this is done by default in the `docker-compose.yml`). You can 
+verify it via `docker service ls`. You should see the `tempo-device-service` is 
+running (replicas are 1/1) and that the port is exposed (there should be a line 
+indicating which port(s) from the container are forwarded to which on the host). 
+If the service isn't running, check the logs and follow typical Docker debugging.
+If the ports aren't exposed, fix it in the compose and redeploy.
+
+Check network connectivity to the container via `curl http://<host>:<port>/` 
+(i.e., send a GET request to the service). It should respond with `200 OK`. If
+not, make sure the service is running on the host and port you expect, then make
+sure general network connectivity is working between the hosts. Obviously, this
+is simpler if both are running on the same host.
+
+#### Make sure the messages are correct 
+This service was written for a specific device, so the messages are only processed 
+correctly if they fit the format explained above. Follow the instructions in the 
+`Usage` section to send fake data to the service via `curl` or another tool of
+choice. You should see the service logs update with information about processing
+the message. If not, then either network connectivity is still a problem (see
+above) or the message format is invalid.
+
+If that's working as expected, but you're still not getting messages from the
+tempo devices, then it's likely they're not sending messages or they're not the
+expected format. Follow the instructions in the section above about Bluetooth to
+verify the device is visible from your phone and then view the raw message dumps
+by running the `sendhci.sh` script with the `-v` flag. If the device is visible,
+you can find messages its sending by searching for those matching the format
+described in an earlier section. Subpayload headers with `FF 33 01` represent
+Blue Maestro manufacturer data, and at least some of the messages should have
+a message matching the rest of that format (the devices do send some other data,
+but the format is different). If the message format is different from that, then
+either your device doesn't match or the manufacturer has unexpectedly changed 
+their API without warning.
+

@@ -72,7 +72,7 @@ function check_device() {
     if [[ "$3" != "unblocked" ]]; then
             echo "removing softblock from $1..."
             (set -x && rfkill unblock bluetooth)
-            if [[ $(rfkill list 0 --noheading --output SOFT) != "unblocked" ]]; then
+            if [[ $(rfkill list $device --noheading --output SOFT) != "unblocked" ]]; then
                     echo "device $1 is '$3', but 'rfkill unblock bluetooth' failed"
                     exit 1;
             fi
@@ -91,6 +91,7 @@ if [[ $? -ne 0 ]]; then
     exit 1;
 fi
 check_device $dstatus
+dname=$(rfkill list $device --noheading --output DEVICE)
 
 scan_opts='--duplicates'
 if [[ $whitelist ]]; then
@@ -100,14 +101,14 @@ fi
 # start scanning
 if [[ $verbose ]]; then
         xargs_opt='-t'
-        (set -x && hcitool lescan $scan_opts) &
+        (set -x && hcitool -i $dname lescan $scan_opts) &
 else
         xargs_opt=''
-        hcitool lescan $scan_opts 1> /dev/null &
+        hcitool -i $dname lescan $scan_opts 1> /dev/null &
 fi
 
 # grab HCI data and send it to the processor
-(hcidump -i ${device:-0} -R | \
+(hcidump -i $dname -R | \
     xargs $xargs_opt -d '>' -I{} \
         curl \
         -s -S \
@@ -119,6 +120,6 @@ fi
 # trap ctrl+c; kill the processes
 trap "trap - SIGTERM && kill -- -$$ 2> /dev/null" SIGINT SIGTERM EXIT
 echo "started $(jobs -pr | tr '\n' ' '); use SIGTERM (usually ctrl+c) to stop"
-echo "sending data from hci${device:-0} to ${hostaddr:-localhost:80/hcidump}"
+echo "sending data from $dname to ${hostaddr:-localhost:80/hcidump}"
 wait
 echo "stopped"

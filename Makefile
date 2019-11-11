@@ -1,7 +1,7 @@
 SERVICE_NAME = tempo-device-service
 VERSION=1.0.0
 
-GO = GOOS=linux GOARCH=amd64 GO111MODULE=auto go
+GO = GOOS=linux GOARCH=amd64 GO111MODULE=on go
 GOFLAGS = -ldflags "-X github.impcloud.net/RSP-Inventory-Suite/$(SERVICE_NAME)/main.Version=$(VERSION)"
 
 RUN_PROFILE=docker

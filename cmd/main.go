@@ -17,11 +17,11 @@
  * notice embedded in Materials by Intel or Intel's suppliers or licensors in any way.
  */
 
-package main
+package cmd
 
 import (
 	"github.com/edgexfoundry/device-sdk-go/pkg/startup"
-	"github.impcloud.net/RSP-Inventory-Suite/tempo-device-service/internal/driver"
+	"github.com/intel/rsp-sw-toolkit-im-suite-tempo-device-service/internal/driver"
 )
 
 const (

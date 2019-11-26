@@ -5,6 +5,8 @@ import (
 	"fmt"
 )
 
+const advertSize = 46
+
 // TempoDiscCurrent is data derived from the announcement of current data from a
 // Blue Maestro Tempo Disk sensor.
 type TempoDiscCurrent struct {
@@ -18,7 +20,7 @@ func leMACToString(macLE []byte) string {
 		macLE[5], macLE[4], macLE[3], macLE[2], macLE[1], macLE[0])
 }
 
-// TempoDecodeError is the error type returned during Unmarshalling if the input
+// TempoDecodeError is the error type returned during unmarshalling if the input
 // data cannot be decoded into TempoDiscCurrent.
 type TempoDecodeError error
 
@@ -27,11 +29,12 @@ var (
 	InvalidPreamble     = TempoDecodeError(errors.New("wrong preamble"))
 	InvalidPDUType      = TempoDecodeError(errors.New("wrong PDU type"))
 	InvalidManufacturer = TempoDecodeError(errors.New("wrong manufacturer ID"))
+	InvalidTemperature  = TempoDecodeError(errors.New("temperature exceeds functional range"))
 )
 
 // UnmarshalBinary decodes advertisement data from Tempo Disks.
 func (tcd *TempoDiscCurrent) UnmarshalBinary(data []byte) error {
-	if len(data) != 46 {
+	if len(data) != advertSize {
 		return InvalidLength
 	}
 	if data[0] != 0x04 {
@@ -49,5 +52,8 @@ func (tcd *TempoDiscCurrent) UnmarshalBinary(data []byte) error {
 
 	tcd.MAC = leMACToString(data[7:16])
 	tcd.Temperature = float32(int16(data[27])<<8|int16(data[28])) / 10.0
+	if tcd.Temperature < -30.0 || tcd.Temperature > 75.0 {
+		return InvalidTemperature
+	}
 	return nil
 }

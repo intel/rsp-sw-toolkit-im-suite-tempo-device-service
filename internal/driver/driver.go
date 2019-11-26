@@ -29,7 +29,6 @@ import (
 	"github.com/edgexfoundry/go-mod-core-contracts/clients/logger"
 	coreModels "github.com/edgexfoundry/go-mod-core-contracts/models"
 	"io"
-	"log"
 	"net/http"
 	"time"
 )
@@ -39,10 +38,6 @@ type Driver struct {
 	AsyncCh chan<- *deviceModels.AsyncValues
 	done    chan interface{}
 	server  *http.Server
-}
-
-type Configuration struct {
-	ListenAddr string
 }
 
 // NewProtocolDriver returns the package-level driver instance.
@@ -103,12 +98,14 @@ func (driver *Driver) Stop(force bool) error {
 }
 
 // HandleReadCommands ignore all requests.
-func (driver *Driver) HandleReadCommands(deviceName string, protocols map[string]coreModels.ProtocolProperties, reqs []deviceModels.CommandRequest) ([]*deviceModels.CommandValue, error) {
+func (driver *Driver) HandleReadCommands(_ string, _ map[string]coreModels.ProtocolProperties,
+	_ []deviceModels.CommandRequest) ([]*deviceModels.CommandValue, error) {
 	return nil, nil
 }
 
 // HandleWriteCommands ignores all requests.
-func (driver *Driver) HandleWriteCommands(deviceName string, protocols map[string]coreModels.ProtocolProperties, reqs []deviceModels.CommandRequest, params []*deviceModels.CommandValue) error {
+func (driver *Driver) HandleWriteCommands(_ string, _ map[string]coreModels.ProtocolProperties,
+	_ []deviceModels.CommandRequest, params []*deviceModels.CommandValue) error {
 	return nil
 }
 
@@ -121,16 +118,17 @@ func (hh hciHandler) ServeHTTP(writer http.ResponseWriter, request *http.Request
 
 	buff := bytes.Buffer{}
 	if err := IgnoreEOF(io.CopyN(&buff, request.Body, 200)); err != nil {
-		log.Printf("error: %+v\n", err)
+		hh.driver.Logger.Error(fmt.Sprintf("unknown error reading request body: %+v", err))
 		writer.WriteHeader(500)
 	}
 
 	decoder := hex.NewDecoder(NewSpaceSkipReader(&buff))
-	data := make([]byte, 100) // TODO: benchmark using a buffer pool
+	data := make([]byte, 100)
 	n, err := decoder.Read(data)
 	if err != nil {
-		log.Printf("error: %+v\n", err)
-		writer.WriteHeader(500)
+		// not exactly an "error", but we can't process it.
+		hh.driver.Logger.Info(fmt.Sprintf("data contains non-hex data: %v", err))
+		writer.WriteHeader(400)
 	}
 
 	tcd := TempoDiscCurrent{}

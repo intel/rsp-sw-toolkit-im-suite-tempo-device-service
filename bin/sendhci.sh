@@ -62,7 +62,6 @@ function check_device() {
             return
     fi
 
-    found=true
     if [[ "$2" != "bluetooth" ]]; then
             echo "device $1 is $2, not bluetooth"
             exit 1;

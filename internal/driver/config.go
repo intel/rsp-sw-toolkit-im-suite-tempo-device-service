@@ -21,6 +21,7 @@ func (cm ConfigMap) Get(name string, v interface{}) error {
 	if !cv.IsValid() || cv.IsNil() || cv.Kind() != reflect.Ptr {
 		panic(fmt.Errorf("invalid destination for configuration %q", name))
 	}
+
 	cv = reflect.Indirect(cv)
 	if !cv.CanSet() {
 		panic(fmt.Errorf("cannot set value for configuration %q", name))
@@ -30,6 +31,7 @@ func (cm ConfigMap) Get(name string, v interface{}) error {
 	if !ok {
 		return fmt.Errorf("missing configuration for %q", name)
 	}
+
 	if strVal == "" {
 		return fmt.Errorf("configuration for %q is empty", name)
 	}

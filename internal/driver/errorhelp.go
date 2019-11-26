@@ -15,7 +15,7 @@ func Drain(r io.ReadCloser) {
 // IgnoreEOF ignores EOF errors.
 var IgnoreEOF = ErrsFilter(io.EOF)
 
-// IgnoreErr returns a decorator that filters out the given errors.
+// ErrsFilter returns a decorator that filters out the given errors.
 func ErrsFilter(errs ...error) func(args ...interface{}) error {
 	if len(errs) == 0 {
 		return func(args ...interface{}) error { return nil }

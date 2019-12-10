@@ -1,3 +1,9 @@
+# Apache v2 license
+#  Copyright (C) <2019> Intel Corporation
+#
+#  SPDX-License-Identifier: Apache-2.0
+#
+
 SERVICE_NAME=tempo-device-service
 MODULE_NAME?=$(shell go list -m)
 VERSION?=$(shell cat ./VERSION)
@@ -8,6 +14,9 @@ TAGS?=$(VERSION) dev latest
 LABELS?="git_sha=$(shell git rev-parse HEAD)"
 RUN_FLAGS=--rm -it -P
 
+PROXY_ARGS =	--build-arg http_proxy=$(http_proxy) \
+				--build-arg https_proxy=$(https_proxy)				
+				
 .PHONY: default run
 
 default: build image run
@@ -17,8 +26,8 @@ $(SERVICE_NAME):
 	 $(GO) build $(GOFLAGS) -o $@ $(MODULE_NAME)/cmd
 	 chmod 0700 $@
 
-image: Dockerfile go.mod go.sum
-	docker build -t $(SERVICE_NAME):$(VERSION) .
+image:
+	docker build $(PROXY_ARGS) -t $(SERVICE_NAME):$(VERSION) .
 
 run:
 	docker run $(RUN_FLAGS) \

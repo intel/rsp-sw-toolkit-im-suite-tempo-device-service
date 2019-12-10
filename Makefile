@@ -18,7 +18,7 @@ BUILD_ARGS=--build-arg http_proxy=$(http_proxy) \
 
 .PHONY: default run image clean
 
-default: build image run
+default: image run
 
 # create a local build of the service
 build: $(SERVICE_NAME)

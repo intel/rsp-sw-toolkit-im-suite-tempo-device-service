@@ -17,7 +17,7 @@
  * notice embedded in Materials by Intel or Intel's suppliers or licensors in any way.
  */
 
-package cmd
+package main
 
 import (
 	"github.com/edgexfoundry/device-sdk-go/pkg/startup"

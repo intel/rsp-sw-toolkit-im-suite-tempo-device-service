@@ -18,7 +18,7 @@ Type = "consul"
 
 [Logging]
 EnableRemote = false
-File = "./tempo-device-service.log"
+File = "/logs/tempo-device-service.log"
 
 [Writable]
 LogLevel = "DEBUG"

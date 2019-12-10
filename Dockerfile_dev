@@ -15,7 +15,7 @@ RUN go mod download
 
 # build the service binary
 COPY . .
-RUN CGO_ENABLED=0 go build -o service .
+RUN CGO_ENABLED=0 go build -o service ./cmd
 
 # ----------------------------------------------------------------
 # Service Image

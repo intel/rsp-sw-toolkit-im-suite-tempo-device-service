@@ -20,7 +20,7 @@ ARG APP_PORT=49993
 COPY --from=builder --chown=2000:2000 /app/logs /logs
 COPY --from=builder --chown=2000:2000 /app/service /
 COPY cmd/res /res
-COPY LICENSE .
+COPY LICENSE-APACHE-2.0.txt .
 
 USER 2000
 ENV APP_PORT=$APP_PORT

@@ -7,6 +7,9 @@ GOFLAGS:=-ldflags "-X $(MODULE_NAME)/cmd/main.Version=$(VERSION)"
 TAGS?=$(VERSION) dev latest
 LABELS?="git_sha=$(shell git rev-parse HEAD)"
 
+PROXY_ARGS =	--build-arg http_proxy=$(http_proxy) \
+				--build-arg https_proxy=$(https_proxy)				
+				
 .PHONY: default run
 
 default: build image run
@@ -15,8 +18,8 @@ build: $(SERVICE_NAME)
 $(SERVICE_NAME):
 	 $(GO) build $(GOFLAGS) -o $@ $(MODULE_NAME)/cmd
 
-image: Dockerfile go.mod go.sum
-	docker build -t $(SERVICE_NAME):$(VERSION) .
+image:
+	docker build $(PROXY_ARGS) -t $(SERVICE_NAME):$(VERSION) .
 
 run:
 	docker run -p $(SERVICE_NAME):$(VERSION)

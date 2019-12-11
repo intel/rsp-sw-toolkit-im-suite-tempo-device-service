@@ -105,33 +105,61 @@ is `Extract`ed as is, or ignored `-`:
 |45| - |c2|Checksum (CRC32)|
 
 ### Sending BLE data
-The [`sendhci.sh` script](bin/sendhci.sh) starts scanning for BLE advertisements,
-reads the `hcidump` raw data, and `curl`s it to a host. If you have a computer
-with a working bluetooth adapter, you can use the script (probably with `sudo`):
+The [`sendhci.sh` script](bin/sendhci.sh) reads the `hcidump` raw data and `curl`s
+it to a host, presumably the one running the tempo-device-service. By default, 
+it uses `hcitool lescan --duplicates` to starts scanning for BLE advertisements,
+but on some systems, this gives `Input/Output Error`, in which case you can tell
+the script to skip the scan command, and instead activate the scan with something
+else like `bluetoothctl` (instructions for this are below).
 
-    usage: ./sendhci.sh [OPTIONS]
+If you have a computer with a working bluetooth adapter, you can use the script 
+(note that you'll likely need to use `sudo`). It uses sensible defaults, but
+supports a small handful of options:
+
+    usage: ./bin/sendhci.sh [OPTIONS]
     OPTIONS:
          --host|-h ENDPOINT
-             where to send hcidump data
-             default: localhost:9001/hcidump
-    
+             Specify where to send hcidump data.
+             default: localhost:80/hcidump
+
          --device|-d HCI_DEVICE_NUM
-             number of the hci device to use
+             Specify the number of the hci device to use
              default: 0
-    
+
          --verbose|-v
-             print scan data while running
+             Print commands and scan data while running.
              default: false
+
+         --no-lescan
+             Only do hcidump, skipping the lescan.
+             this is useful if you're starting scanning elsewhere,
+             e.g., via when using bluetoothctl:
+                 > sudo bluetoothctl
+                 > menu scan
+                 > duplicate-data on
+                 > back
+                 > scan on
+             default: false
+
+         --whitelist|-w
+             Pass the '--whitelist' option to lescan (if using).
+             Doing so instructs the bluetooth device to only report
+             data that matches a device on the bluetooth whitelist.
+             default: false
+
+          --help
+             Show this message and exit.
+
 
 Sending data in this way requires a working bluetooth stack and device. On linux, 
 most or all of the software is likely already installed. If so, the script should
 work without issue. If it doesn't, here are some tips you can use to troubleshoot.
 
 Processing messages can go wrong in a few main steps:
-- the sensors aren't on/beaconing
+- the sensors aren't powered/on/beaconing
 - BLE messages aren't picked up by the receiver
 - messages aren't making it over the network to the service
-- the services doesn't recognizes the message or can't extract the temperature 
+- the services doesn't recognize the message or can't extract the temperature 
 
 #### Get Bluetooth messages from the device
 If you don't have bluetooth tools installed, you can get them on ubuntu with:
@@ -151,26 +179,50 @@ If you don't see your bluetooth device, you'll need to do some Googling to debug
 Assuming the device is listed, it also needs to be free from soft/hard blocks.
 A soft block is essentially a note to the system to disable the device. You can
 remove a soft block with `rfkill unblock bluetooth`. The script automatically
-handles this case. A hard block is a physical switch that prevents the device
-from running. If you see `blocked` in the `HARD` column, you'll need to find and
-change the physical switch setting.
+tries to handle this case. A hard block is a physical switch that prevents the 
+device from running. If you see `blocked` in the `HARD` column, you'll need to 
+find and change the physical switch setting.
 
-If the device is up and running, you can scan for BLE messages with:
+If the device is up and running, you can try to scan for BLE messages with:
 
     hcitool lescan --duplicates
-    
+
+If this gives a message like `Input/Output error`, it may be that its unable to
+get access to the hci device, probably because some other service is making use
+of it. While `hcitool` is a convenient way of scripting interactions with the
+bluetooth device, for debugging you may find it easier to try interacting with 
+it via the interactive `bluetoothctl` CLI. The script's help message outputs the
+commands to do so, but they're repeated here with some comments:
+
+```bash
+# Enter the bluetoothctl CLI.
+> sudo bluetoothctl
+
+# Enter the "scan" submenu.
+> menu scan
+
+# Enable "duplicate" BLE messages, which are diabled by default.
+# Without this, a device's beacon is only reported once until the discovery of 
+# that device times out.
+> duplicate-data on
+
+# Move back up to the main menu.
+> back
+
+# Start scanning for BLE messages.
+> scan on
+```
+ 
 This will list the address of all BLE devices advertising within range. If you
 don't see any, then either scanning isn't working or there aren't any devices
 nearby. You can verify that your tempo disc is beaconing by installing their app 
-to your smartphone. Refer to their documentation for more information.
+to your smartphone, which will show any nearby discovered devices and their names.
+Refer to their documentation for more information.
 
-If that's not working, you can try resetting the device via `bluetoothctl`. 
-Enter `bluetoothctl` in a terminal to enter the CLI (you may need `sudo`), then 
-try scanning by typing `scan on`. It should print addresses of beaconing devices.
-Stop it with `scan off`. If those don't work, try cycling (or just powering) the
-bluetooth device via `power on`/`power off` commands. After these commands, you 
-can retry the `lescan` or the `sendhci.sh -v` script. You should see messages at
-this point; if not, it's time to turn to Google.
+If you don't see any scan results, with neither `hcitool lescan` nor `bluetoothctl`,
+you can try resetting the device via `bluetoothctl`. Enter `bluetoothctl`, then 
+try cycling (or just powering) the bluetooth device via `power on`/`power off` 
+commands. 
 
 #### Make sure messages can make it over the network
 The `curl` command sends messages to the target host specified with `-h <hostaddr>`.

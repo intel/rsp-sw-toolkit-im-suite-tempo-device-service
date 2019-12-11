@@ -5,20 +5,36 @@ function usage() {
         echo "usage: $name [OPTIONS]"
         echo "OPTIONS:"
         echo "     --host|-h ENDPOINT"
-        echo "         where to send hcidump data"
+        echo "         Specify where to send hcidump data."
         echo "         default: localhost:80/hcidump"
         echo ""
         echo "     --device|-d HCI_DEVICE_NUM"
-        echo "         number of the hci device to use"
+        echo "         Specify the number of the hci device to use"
         echo "         default: 0"
         echo ""
-        echo "     --whitelist|-w"
-        echo "         pass --whitelist option to lescan"
+        echo "     --verbose|-v"
+        echo "         Print commands and scan data while running."
         echo "         default: false"
         echo ""
-        echo "     --verbose|-v"
-        echo "         print scan data while running"
+        echo "     --no-lescan"
+        echo "         Only do hcidump, skipping the lescan."
+        echo "         this is useful if you're starting scanning elsewhere,"
+        echo "         e.g., via when using bluetoothctl:"
+        echo "             > sudo bluetoothctl"
+        echo "             > menu scan"
+        echo "             > duplicate-data on"
+        echo "             > back"
+        echo "             > scan on"
         echo "         default: false"
+        echo ""
+        echo "     --whitelist|-w"
+        echo "         Pass the '--whitelist' option to lescan (if using)."
+        echo "         Doing so instructs the bluetooth device to only report"
+        echo "         data that matches a device on the bluetooth whitelist."
+        echo "         default: false"
+        echo ""
+        echo "      --help"
+        echo "         Show this message and exit."
 }
 
 function ensure_arg() {
@@ -30,14 +46,21 @@ function ensure_arg() {
 
 hostaddr=localhost:9001/hcidump
 device=0
+uselescan=1
 
 # read options
 while [[ "$1" =~ ^- ]]; do case $1 in
+        --help)
+                usage; exit 0
+                ;;
         --host | -h)
                 ensure_arg $1 $2; shift; hostaddr=$1
                 ;;
         --device | -d)
                 ensure_arg $1 $2; shift; device=$1
+                ;;
+        --no-lescan)
+                uselescan=0
                 ;;
         --whitelist | -w)
                 whitelist=1
@@ -98,12 +121,14 @@ if [[ $whitelist ]]; then
 fi
 
 # start scanning
+if [[ $uselescan ]]; then
 if [[ $verbose ]]; then
         xargs_opt='-t'
         (set -x && hcitool -i $dname lescan $scan_opts) &
 else
         xargs_opt=''
         hcitool -i $dname lescan $scan_opts 1> /dev/null &
+fi
 fi
 
 # grab HCI data and send it to the processor

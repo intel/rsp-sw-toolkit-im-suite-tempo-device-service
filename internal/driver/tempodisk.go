@@ -8,7 +8,6 @@ package driver
 
 import (
 	"errors"
-	"fmt"
 )
 
 const advertSize = 46
@@ -16,14 +15,9 @@ const advertSize = 46
 // TempoDiscCurrent is data derived from the announcement of current data from a
 // Blue Maestro Tempo Disk sensor.
 type TempoDiscCurrent struct {
-	MAC         string
+	MAC         [6]byte
+	Name        string
 	Temperature float32
-}
-
-// leMACToString converts a LE-MAC address to a pretty-printed string.
-func leMACToString(macLE []byte) string {
-	return fmt.Sprintf("%02X:%02X:%02X:%02X:%02X:%02X",
-		macLE[5], macLE[4], macLE[3], macLE[2], macLE[1], macLE[0])
 }
 
 // TempoDecodeError is the error type returned during unmarshalling if the input
@@ -56,10 +50,28 @@ func (tcd *TempoDiscCurrent) UnmarshalBinary(data []byte) error {
 		return InvalidManufacturer
 	}
 
-	tcd.MAC = leMACToString(data[7:16])
+	for i, b := range data[7:13] {
+		tcd.MAC[5-i] = b
+	}
+	tcd.Name = string(data[37:45])
 	tcd.Temperature = float32(int16(data[27])<<8|int16(data[28])) / 10.0
+
 	if tcd.Temperature < -30.0 || tcd.Temperature > 75.0 {
 		return InvalidTemperature
 	}
 	return nil
 }
+
+// isASCIIPrintable returns true if the string contains any characters outside
+// the range 0x21-0x7E, i.e. the characters in the following regex class:
+// [a-zA-Z0-9!-#$%&'()*+,-./:;<=>?@[\]^_`{\}~]. Note that this excludes 0x20,
+// the ASCII space character.
+func isASCIIPrintable(s string) bool {
+	for i := range s {
+		if !(s[i] >= '!' && s[i] <= '~') {
+			return false
+		}
+	}
+	return true
+}
+

@@ -17,6 +17,7 @@ import (
 	coreModels "github.com/edgexfoundry/go-mod-core-contracts/models"
 	"io"
 	"net/http"
+	"strings"
 	"time"
 )
 
@@ -123,7 +124,7 @@ func (hh hciHandler) ServeHTTP(writer http.ResponseWriter, request *http.Request
 		return
 	}
 
-	if _, notFound := device.RunningService().GetDeviceByName(tcd.MAC); notFound != nil {
+	if _, notFound := device.RunningService().GetDeviceByName(tcd.Name); notFound != nil {
 		if err := hh.driver.registerTempoDisc(tcd); err != nil {
 			hh.driver.Logger.Error(fmt.Sprintf("Failed to register %q: %+v", tcd.MAC, err))
 			return
@@ -136,6 +137,17 @@ func (hh hciHandler) ServeHTTP(writer http.ResponseWriter, request *http.Request
 	}
 }
 
+func (driver *Driver) checkName(tcd *TempoDiscCurrent) {
+	if len(tcd.Name) != 8 || !isASCIIPrintable(tcd.Name) {
+		oldName := []byte(tcd.Name)
+		tcd.Name = strings.ToUpper(hex.EncodeToString(tcd.MAC[:4]))
+		driver.Logger.Warn(fmt.Sprintf(
+			"Device name isn't 8 bytes of ASCII printable characters (bytes: %#02X);" +
+				"defaulting to using the upper-case hex of its first six MAC bytes: %s",
+			oldName, tcd.Name))
+	}
+}
+
 func (driver *Driver) sendTemperature(tcd TempoDiscCurrent) error {
 	origin := time.Now().UnixNano() / int64(time.Millisecond)
 	value, err := deviceModels.NewFloat32Value("Temperature", origin, tcd.Temperature)
@@ -144,7 +156,7 @@ func (driver *Driver) sendTemperature(tcd TempoDiscCurrent) error {
 	}
 
 	driver.AsyncCh <- &deviceModels.AsyncValues{
-		DeviceName:    tcd.MAC,
+		DeviceName:    tcd.Name,
 		CommandValues: []*deviceModels.CommandValue{value},
 	}
 	driver.Logger.Info(fmt.Sprintf("Sent new reading: %+v", tcd))
@@ -154,7 +166,7 @@ func (driver *Driver) sendTemperature(tcd TempoDiscCurrent) error {
 
 func (driver *Driver) registerTempoDisc(tcd TempoDiscCurrent) (err error) {
 	_, err = device.RunningService().AddDevice(coreModels.Device{
-		Name:           tcd.MAC,
+		Name:           tcd.Name,
 		AdminState:     coreModels.Unlocked,
 		OperatingState: coreModels.Enabled,
 		Profile:        coreModels.DeviceProfile{Name: "Tempo-Disc"},

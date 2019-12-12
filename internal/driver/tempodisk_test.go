@@ -24,17 +24,66 @@ func TestHCIDumpToTempoData(t *testing.T) {
 	n := w.ShouldHaveResult(decoder.Read(data)).(int)
 	tcd := new(TempoDiscCurrent)
 	w.ShouldSucceed(tcd.UnmarshalBinary(data[:n]))
-	w.ShouldBeEqual(tcd.MAC, "C1:EE:03:79:EA:8C")
+	w.ShouldBeEqual(tcd.MAC, [6]byte{0xC1, 0xEE, 0x03, 0x79, 0xEA, 0x8C})
+	w.ShouldBeEqual(tcd.Name, "C1EE0379")
 	w.ShouldBeEqual(tcd.Temperature, float32(22.4))
 }
 
 func TestDecodeTempoData(t *testing.T) {
 	w := expect.WrapT(t)
-	data := w.ShouldHaveResult(hex.DecodeString(
-		"043E2B020100018CEA7903EEC11F020106" +
-			"11FF33010D64003C32F5" +
-			"010200000000010009094331454530333739B7")).([]byte)
 	tcd := new(TempoDiscCurrent)
-	w.ShouldSucceed(tcd.UnmarshalBinary(data))
+	w.ShouldSucceed(tcd.UnmarshalBinary(tempoData(w)))
+	w.ShouldBeEqual(tcd.MAC, [6]byte{0xC1, 0xEE, 0x03, 0x79, 0xEA, 0x8C})
+	w.ShouldBeEqual(tcd.Name, "C1EE0379")
 	w.ShouldBeEqual(tcd.Temperature, float32(25.8))
+}
+
+func TestDecodeTempoData_invalidTemperature(t *testing.T) {
+	w := expect.WrapT(t)
+	td := TempoDiscCurrent{
+		MAC: [6]byte{0xC1, 0xEE, 0x03, 0x79, 0xEA, 0x8C},
+		Name: "C1EE0379",
+		Temperature: 100,
+	}
+	data := w.ShouldHaveResult(td.MarshalBinary()).([]byte)
+	tcd := new(TempoDiscCurrent)
+	w.ShouldFail(tcd.UnmarshalBinary(data))
+
+	td = TempoDiscCurrent{
+		MAC: [6]byte{0xC1, 0xEE, 0x03, 0x79, 0xEA, 0x8C},
+		Name: "C1EE0379",
+		Temperature: -31,
+	}
+	data = w.ShouldHaveResult(td.MarshalBinary()).([]byte)
+	tcd = new(TempoDiscCurrent)
+	w.ShouldFail(tcd.UnmarshalBinary(data))
+}
+
+func (td *TempoDiscCurrent) MarshalBinary() ([]byte, error) {
+	leMAC := []byte{td.MAC[5], td.MAC[4], td.MAC[3], td.MAC[2], td.MAC[1], td.MAC[0]}
+	tb := int16(td.Temperature * 10)
+	if len(td.Name) < 8 {
+		td.Name = td.Name + "\000\000\000\000\000\000\000\000"[len(td.Name):]
+	}
+	return hex.DecodeString(
+		"04" + "3E2B0201" + "00" + "01" + // BLE control data
+			hex.EncodeToString(leMAC) + // little-endian MAC address
+			"1F" + "02" + "01" + "06" + "11" + // payload metadata
+			"FF3301" + // manufacturer data flag/ID
+			"0D" + "64" + "003C" + "32F5" + // version, battery %, log interval, log count
+			hex.EncodeToString([]byte{uint8(tb >> 8), uint8(tb)}) + // temperature, in tenths of a degree
+			"0000" + "0000" + "01" + "00" + // humidity, dew point, mode, alarm breaches
+			"09" + "09" + // payload metadata
+			hex.EncodeToString([]byte(td.Name[:8])) + // ASCII name
+			"B7")
+}
+
+func tempoData(w *expect.TWrapper) []byte {
+	td := TempoDiscCurrent{
+		MAC: [6]byte{0xC1, 0xEE, 0x03, 0x79, 0xEA, 0x8C},
+		Name: "C1EE0379",
+		Temperature: 25.8,
+	}
+
+	return w.ShouldHaveResult(td.MarshalBinary()).([]byte)
 }

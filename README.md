@@ -72,7 +72,7 @@ In the current code version, messages are considered valid if this is true:
 In this case, the name, MAC address, and temperature are decoded and sent as a
 reading to EdgeX. The name used for the message defaults to the device's reported
 name (bytes 37-44); however, if those bytes are outside of the ASCII range, the
-service instead uses the first 6 bytes of the MAC, converted to upper case hex
+service instead uses the first 4 bytes of the MAC, converted to upper case hex
 (doing so matches the default names the disc uses). It additionally logs a 
 warning with the device's reported and assigned name.
 

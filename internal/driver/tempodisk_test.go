@@ -24,7 +24,7 @@ func TestHCIDumpToTempoData(t *testing.T) {
 	n := w.ShouldHaveResult(decoder.Read(data)).(int)
 	tcd := new(TempoDiscCurrent)
 	w.ShouldSucceed(tcd.UnmarshalBinary(data[:n]))
-	w.ShouldBeEqual(tcd.MAC, [6]byte{0xC1, 0xEE, 0x03, 0x79, 0xEA, 0x8C})
+	w.ShouldBeEqual([6]byte(tcd.MAC), [6]byte{0xC1, 0xEE, 0x03, 0x79, 0xEA, 0x8C})
 	w.ShouldBeEqual(tcd.Name, "C1EE0379")
 	w.ShouldBeEqual(tcd.Temperature, float32(22.4))
 }
@@ -33,7 +33,7 @@ func TestDecodeTempoData(t *testing.T) {
 	w := expect.WrapT(t)
 	tcd := new(TempoDiscCurrent)
 	w.ShouldSucceed(tcd.UnmarshalBinary(tempoData(w)))
-	w.ShouldBeEqual(tcd.MAC, [6]byte{0xC1, 0xEE, 0x03, 0x79, 0xEA, 0x8C})
+	w.ShouldBeEqual([6]byte(tcd.MAC), [6]byte{0xC1, 0xEE, 0x03, 0x79, 0xEA, 0x8C})
 	w.ShouldBeEqual(tcd.Name, "C1EE0379")
 	w.ShouldBeEqual(tcd.Temperature, float32(25.8))
 }

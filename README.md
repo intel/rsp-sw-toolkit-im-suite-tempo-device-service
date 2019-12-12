@@ -59,7 +59,7 @@ but it'll also accept data without formatting:
 
 When all is working, you'll see logs with `msg`s like:
 
-    Sent new reading: {MAC:C1:EE:03:79:EA:8C Temperature:22.4}
+    Sent new reading: {MAC:C1:EE:03:79:EA:8C Name:C1EE0379 Temperature:22.4}
     
 ### Data Format
 The data format matches advertisements from Blue Maestro Tempo Disc sensors.
@@ -67,10 +67,14 @@ In the current code version, messages are considered valid if this is true:
  - the message is 92 hex characters (ignoring `[\n\r\t ]`)
  - byte 0 is `0x04`
  - bytes 17-20 are `0x11FF3301`
+ - converted temperature is in [-30, 70]
 
-In this case, bytes 7-16 are extracted as LE MAC address and bytes 27-28 are
-extracted as INT16 current temperature in tenths of a degree (units depend on 
-the sensor settings, but are assumed as the default Celsius).
+In this case, the name, MAC address, and temperature are decoded and sent as a
+reading to EdgeX. The name used for the message defaults to the device's reported
+name (bytes 37-44); however, if those bytes are outside of the ASCII range, the
+service instead uses the first 6 bytes of the MAC, converted to upper case hex
+(doing so matches the default names the disc uses). It additionally logs a 
+warning with the device's reported and assigned name.
 
 #### More Specific Data Format
 In the table below, `Check` shows if the value must `Match` exactly, 
@@ -82,7 +86,7 @@ is `Extract`ed as is, or ignored `-`:
 |1-4| - |3e 2b 02 01|Access address|
 |5| - |00|BLE 2 bit ADV_IND, 2 bit RFU, 2 bit Tx/Rx|
 |6| - |01|2 bit RFU, 6 bit total payload length|
-|7-12|Extract|7f 94 4c 33 a1 ce| LE MAC address|
+|7-12|Extract; used if Name is invalid|7f 94 4c 33 a1 ce| LE MAC address|
 |13| - |1f|Message length|
 |14| - |02|Sub-payload is 2 bytes, including type|
 |15| - |01|Sub-payload Type is "Flags"|
@@ -101,7 +105,7 @@ is `Extract`ed as is, or ignored `-`:
 |34| - |00|Alarm breach count (if alarms set)|
 |35| - |09|Sub-payload is 9 bytes, including type|
 |36| - |09|Sub-payload Type is "Complete Local Name"|
-|37-44| - |43 45 41 31 33 33 34 43|ASCII name (CEA1334C)|
+|37-44| Extract; used if 8 ASCII bytes |43 45 41 31 33 33 34 43|ASCII name (CEA1334C)|
 |45| - |c2|Checksum (CRC32)|
 
 ### Sending BLE data

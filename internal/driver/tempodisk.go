@@ -8,6 +8,7 @@ package driver
 
 import (
 	"errors"
+	"fmt"
 )
 
 const advertSize = 46
@@ -15,9 +16,15 @@ const advertSize = 46
 // TempoDiscCurrent is data derived from the announcement of current data from a
 // Blue Maestro Tempo Disk sensor.
 type TempoDiscCurrent struct {
-	MAC         [6]byte
+	MAC         BLAddr
 	Name        string
 	Temperature float32
+}
+
+type BLAddr [6]byte
+func (m BLAddr) String() string {
+	return fmt.Sprintf("%02X:%02X:%02X:%02X:%02X:%02X",
+		m[0], m[1], m[2], m[3], m[4], m[5])
 }
 
 // TempoDecodeError is the error type returned during unmarshalling if the input

@@ -133,7 +133,7 @@ fi
 
 # grab HCI data and send it to the processor
 (hcidump -i $dname -R | \
-  stdbuf -o0 tr '><' '\0' | stdbuf -o0 tr -d ' \n' | \
+  stdbuf -o0 tr '><' '\0\0' | stdbuf -o0 tr -d ' \n' | \
     xargs $xargs_opt -0 -I{} \
         curl \
         -s -S \

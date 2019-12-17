@@ -7,8 +7,10 @@
 package driver
 
 import (
+	"encoding/hex"
 	"errors"
 	"fmt"
+	"regexp"
 )
 
 const advertSize = 46
@@ -22,6 +24,7 @@ type TempoDiscCurrent struct {
 }
 
 type BLAddr [6]byte
+
 func (m BLAddr) String() string {
 	return fmt.Sprintf("%02X:%02X:%02X:%02X:%02X:%02X",
 		m[0], m[1], m[2], m[3], m[4], m[5])
@@ -32,26 +35,49 @@ func (m BLAddr) String() string {
 type TempoDecodeError error
 
 var (
-	InvalidLength       = TempoDecodeError(errors.New("wrong data length"))
+	InvalidLength       = TempoDecodeError(errors.New("not enough data"))
 	InvalidPreamble     = TempoDecodeError(errors.New("wrong preamble"))
 	InvalidPDUType      = TempoDecodeError(errors.New("wrong PDU type"))
 	InvalidManufacturer = TempoDecodeError(errors.New("wrong manufacturer ID"))
 	InvalidTemperature  = TempoDecodeError(errors.New("temperature exceeds functional range"))
+
+	nonStd = regexp.MustCompile(`^04.*?0001(?P<mac>.{12}).*?(?P<payload>11ff3301.{28}).*?(?P<name>0909.{16})`)
 )
+
+// parseNonStandard uses a regex to guess which portions of the message match the
+// expected format, then reconstructs it to match that guess and parses the data
+// that way, if it can.
+func parseNonStandard(data []byte) (TempoDiscCurrent, error) {
+	// inefficient, but effective
+	asStr := hex.EncodeToString(data)
+	result := nonStd.FindStringSubmatchIndex(asStr)
+	if len(result) < 8 || result[2] == -1 || result[4] == -1 || result[6] == -1 {
+		return TempoDiscCurrent{}, errors.New("unable to match data")
+	}
+
+	newData := make([]byte, advertSize)
+	newData[0] = 0x04
+	copy(newData[7:13], data[result[2]/2:result[3]/2])  // mac
+	copy(newData[17:35], data[result[4]/2:result[5]/2]) // payload
+	copy(newData[35:45], data[result[6]/2:result[7]/2]) // name
+
+	tcd := new(TempoDiscCurrent)
+	return *tcd, tcd.UnmarshalBinary(newData)
+}
 
 // UnmarshalBinary decodes advertisement data from Tempo Disks.
 func (tcd *TempoDiscCurrent) UnmarshalBinary(data []byte) error {
-	if len(data) != advertSize {
+	if len(data) < advertSize {
 		return InvalidLength
 	}
 	if data[0] != 0x04 {
 		return InvalidPreamble
 	}
-	if data[18] != 0xFF {
-		return InvalidPDUType
-	}
 	if data[17] != 0x11 {
 		return InvalidLength
+	}
+	if data[18] != 0xFF {
+		return InvalidPDUType
 	}
 	if data[19] != 0x33 || data[20] != 01 {
 		return InvalidManufacturer
@@ -81,4 +107,3 @@ func isASCIIPrintable(s string) bool {
 	}
 	return true
 }
-

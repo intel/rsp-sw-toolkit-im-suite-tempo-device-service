@@ -18,10 +18,6 @@ func GetDriverConfig() ConfigMap {
 	return device.DriverConfigs()
 }
 
-func GetConfig(name string, v interface{}) error {
-	return GetDriverConfig().Get(name, v)
-}
-
 func (cm ConfigMap) Get(name string, v interface{}) error {
 	cv := reflect.ValueOf(v)
 	if !cv.IsValid() || cv.IsNil() || cv.Kind() != reflect.Ptr {

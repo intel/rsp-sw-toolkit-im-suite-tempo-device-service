@@ -22,10 +22,11 @@ import (
 )
 
 type Driver struct {
-	Logger  logger.LoggingClient
-	AsyncCh chan<- *deviceModels.AsyncValues
-	done    chan interface{}
-	server  *http.Server
+	Logger     logger.LoggingClient
+	AsyncCh    chan<- *deviceModels.AsyncValues
+	done       chan interface{}
+	server     *http.Server
+	decodeMode string
 }
 
 // NewProtocolDriver returns the package-level driver instance.
@@ -34,7 +35,10 @@ func NewProtocolDriver() deviceModels.ProtocolDriver {
 }
 
 const (
-	ConfigListenAddr = "ListenAddress"
+	ConfigListenAddr   = "ListenAddress"
+	ConfigDecodingMode = "DecodingMode"
+	ModeStrict         = "strict"
+	ModeNonStandard    = "non-standard"
 )
 
 // Initialize the driver.
@@ -46,6 +50,12 @@ func (driver *Driver) Initialize(lc logger.LoggingClient, asyncCh chan<- *device
 	var listenAddr string
 	if err := GetDriverConfig().Get(ConfigListenAddr, &listenAddr); err != nil {
 		return err
+	}
+	if err := GetDriverConfig().Get(ConfigDecodingMode, &driver.decodeMode); err != nil {
+		return err
+	}
+	if driver.decodeMode != ModeStrict && driver.decodeMode != ModeNonStandard {
+		return fmt.Errorf("unknown decoder mode: %q", driver.decodeMode)
 	}
 
 	mux := http.NewServeMux()
@@ -105,34 +115,46 @@ func (hh hciHandler) ServeHTTP(writer http.ResponseWriter, request *http.Request
 	defer Drain(request.Body)
 
 	buff := bytes.Buffer{}
-	if err := IgnoreEOF(io.CopyN(&buff, request.Body, 200)); err != nil {
+	if err := IgnoreEOF(io.CopyN(&buff, request.Body, 400)); err != nil {
 		hh.driver.Logger.Error(fmt.Sprintf("unknown error reading request body: %+v", err))
 		writer.WriteHeader(500)
+		return
 	}
 
 	decoder := hex.NewDecoder(NewSpaceSkipReader(&buff))
-	data := make([]byte, 100)
+	data := make([]byte, 200)
 	n, err := decoder.Read(data)
 	if err != nil {
 		// not exactly an "error", but we can't process it.
 		hh.driver.Logger.Info(fmt.Sprintf("data contains non-hex data: %v", err))
 		writer.WriteHeader(400)
+		return
 	}
 
-	tcd := TempoDiscCurrent{}
-	if err := tcd.UnmarshalBinary(data[:n]); err != nil {
+	var tcd TempoDiscCurrent
+	if hh.driver.decodeMode == ModeNonStandard {
+		tcd, err = parseNonStandard(data[:n])
+	} else {
+		tcd = TempoDiscCurrent{}
+		err = tcd.UnmarshalBinary(data[:n])
+	}
+	if err != nil {
+		hh.driver.Logger.Info(fmt.Sprintf("data cannot be decoded as Tempo Device Data: %+v", err))
+		writer.WriteHeader(400)
 		return
 	}
 
 	if _, notFound := device.RunningService().GetDeviceByName(tcd.Name); notFound != nil {
 		if err := hh.driver.registerTempoDisc(tcd); err != nil {
 			hh.driver.Logger.Error(fmt.Sprintf("Failed to register %q: %+v", tcd.MAC, err))
+			writer.WriteHeader(500)
 			return
 		}
 	}
 
 	if err := hh.driver.sendTemperature(tcd); err != nil {
 		hh.driver.Logger.Error(fmt.Sprintf("Failed to create new Temperature: %+v", err))
+		writer.WriteHeader(500)
 		return
 	}
 }
@@ -142,7 +164,7 @@ func (driver *Driver) checkName(tcd *TempoDiscCurrent) {
 		oldName := []byte(tcd.Name)
 		tcd.Name = strings.ToUpper(hex.EncodeToString(tcd.MAC[:4]))
 		driver.Logger.Warn(fmt.Sprintf(
-			"Device name isn't 8 bytes of ASCII printable characters (bytes: %#02X);" +
+			"Device name isn't 8 bytes of ASCII printable characters (bytes: %#02X);"+
 				"defaulting to using the upper-case hex of its first six MAC bytes: %s",
 			oldName, tcd.Name))
 	}

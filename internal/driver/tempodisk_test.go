@@ -38,11 +38,41 @@ func TestDecodeTempoData(t *testing.T) {
 	w.ShouldBeEqual(tcd.Temperature, float32(25.8))
 }
 
+func TestDecodeTempoData2(t *testing.T) {
+	w := expect.WrapT(t)
+	data := []byte("043E2B020100017F944C33A1CE1F02010611FF33010D64003C2D0300F300000000010009094345413133333443BF")
+	buff := bytes.NewReader(data)
+	decoder := hex.NewDecoder(NewSpaceSkipReader(buff))
+	result := make([]byte, 100)
+	n := w.ShouldHaveResult(decoder.Read(result)).(int)
+	w.ShouldBeTrue(n > 0)
+
+	tcd := new(TempoDiscCurrent)
+	w.StopOnMismatch().ShouldSucceed(tcd.UnmarshalBinary(result[:n]))
+	w.ShouldHaveOrder(tcd.MAC, []byte{0xCE, 0xA1, 0x33, 0x4C, 0x94, 0x7F})
+	w.ShouldBeEqual(tcd.Name, "CEA1334C")
+	w.ShouldBeEqual(tcd.Temperature, float32(24.3))
+}
+
+func TestDecodeTempoData_nonStandard(t *testing.T) {
+	w := expect.WrapT(t)
+	input := []byte("04 3E390D01 13 0001 A730C9B750FE 0100FF00A90000000000000000001F 020106  11FF 3301 0D640E1003A500E5000000000100 09 09 4645353042374339")
+	decoder := hex.NewDecoder(NewSpaceSkipReader(bytes.NewReader(input)))
+	data := make([]byte, 200)
+	n := w.ShouldHaveResult(decoder.Read(data)).(int)
+
+	tcd := w.StopOnMismatch().
+		ShouldHaveResult(parseNonStandard(data[:n])).(TempoDiscCurrent)
+	w.ShouldBeEqual([6]uint8(tcd.MAC), [6]byte{0xFE, 0x50, 0xB7, 0xC9, 0x30, 0xA7})
+	w.ShouldBeEqual(tcd.Name, "FE50B7C9")
+	w.ShouldBeEqual(tcd.Temperature, float32(22.9))
+}
+
 func TestDecodeTempoData_invalidTemperature(t *testing.T) {
 	w := expect.WrapT(t)
 	td := TempoDiscCurrent{
-		MAC: [6]byte{0xC1, 0xEE, 0x03, 0x79, 0xEA, 0x8C},
-		Name: "C1EE0379",
+		MAC:         [6]byte{0xC1, 0xEE, 0x03, 0x79, 0xEA, 0x8C},
+		Name:        "C1EE0379",
 		Temperature: 100,
 	}
 	data := w.ShouldHaveResult(td.MarshalBinary()).([]byte)
@@ -50,8 +80,8 @@ func TestDecodeTempoData_invalidTemperature(t *testing.T) {
 	w.ShouldFail(tcd.UnmarshalBinary(data))
 
 	td = TempoDiscCurrent{
-		MAC: [6]byte{0xC1, 0xEE, 0x03, 0x79, 0xEA, 0x8C},
-		Name: "C1EE0379",
+		MAC:         [6]byte{0xC1, 0xEE, 0x03, 0x79, 0xEA, 0x8C},
+		Name:        "C1EE0379",
 		Temperature: -31,
 	}
 	data = w.ShouldHaveResult(td.MarshalBinary()).([]byte)
@@ -80,8 +110,8 @@ func (td *TempoDiscCurrent) MarshalBinary() ([]byte, error) {
 
 func tempoData(w *expect.TWrapper) []byte {
 	td := TempoDiscCurrent{
-		MAC: [6]byte{0xC1, 0xEE, 0x03, 0x79, 0xEA, 0x8C},
-		Name: "C1EE0379",
+		MAC:         [6]byte{0xC1, 0xEE, 0x03, 0x79, 0xEA, 0x8C},
+		Name:        "C1EE0379",
 		Temperature: 25.8,
 	}
 

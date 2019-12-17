@@ -58,3 +58,9 @@ LogLevel = "DEBUG"
   # POST output of hcidump to <host>:<ListenAddress>/hcidump;
   # see sendhci.sh for an example.
   ListenAddress = "9001"
+  # decoding mode can be "strict" or "non-standard"
+  # "strict" expect an exact length & value match against an expected packet
+  # "non-standard" uses a regular expression to guess portions of the message,
+  # which may be necessary if a given HCI device sends data in a non-standard
+  # way.
+  DecodingMode = "non-standard"

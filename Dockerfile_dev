@@ -3,11 +3,6 @@
 # ----------------------------------------------------------------
 FROM golang:1.12 as builder
 
-# Authentication needed to pull git modules from github.impcloud.net
-ARG GIT_TOKEN
-RUN git config --global credential.helper store
-RUN echo "url=https://$GIT_TOKEN:x-oauth-basic@github.impcloud.net" | git credential approve
-
 # take advantage of build cache by downloading modules before copying sources
 WORKDIR /app
 COPY go.mod .
